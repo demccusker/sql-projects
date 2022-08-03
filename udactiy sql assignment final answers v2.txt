@@ -1,0 +1,107 @@
+Answer 1
+We want to understand more about the movies that families are watching. The following categories are considered family movies: Animation, Children, Classics, Comedy, Family and Music.
+Create a query that lists each movie, the film category it is classified in, and the number of times it has been rented out.
+For this query, you will need 5 tables: Category, Film_Category, Inventory, Rental and Film. Your solution should have three columns: Film title, Category name and Count of Rentals.
+First query: 
+CREATE VIEW view1
+AS 
+SELECT t2.film_title, t2.category_name, t3.rental_count_per_film
+
+FROM (SELECT f.title as film_title, c.name as category_name, f.film_id
+		FROM film f
+		JOIN film_category fc
+		ON f.film_id = fc.film_id
+		JOIN category c 
+		ON fc.category_id = c.category_id
+		WHERE c.name = 'Animation' OR c.name = 'Children' OR c.name = 'Classics' OR c.name = 'Comedy' OR c.name = 'Family' OR c.name = 'Music'
+		ORDER BY c.name) t2
+JOIN (SELECT i.film_id, SUM(count_per_inv) AS rental_count_per_film
+		FROM inventory i
+		LEFT JOIN (SELECT r.inventory_id, COUNT(r.inventory_id) AS count_per_inv
+			FROM inventory i
+			LEFT JOIN rental r
+			ON r.inventory_id = i.inventory_id
+			GROUP BY r.inventory_id) t1
+		ON t1.inventory_id = i.inventory_id
+		GROUP BY i.film_id
+		ORDER BY film_id) t3
+ON t2.film_id = t3.film_id;
+
+Next query:
+SELECT category_name, AVG(rental_count_per_film)
+FROM view1
+GROUP BY category_name;
+
+Next query:
+SELECT category_name, COUNT(film_title)
+FROM view1
+GROUP BY category_name;
+
+
+~~~~~~~~
+Answer 2:
+Can you provide a table with the movie titles and divide them into 4 levels (first_quarter, second_quarter, third_quarter, and final_quarter) 
+based on the quartiles (25%, 50%, 75%) of the rental duration for movies across all categories? 
+Make sure to also indicate the category that these family-friendly movies fall into.
+First query:
+CREATE VIEW view2
+AS 
+WITH t1 AS (SELECT f.title, c.name AS category_name, f.rental_duration, NTILE(4) OVER (ORDER BY f.rental_duration) AS standard_quartile
+FROM film f
+JOIN film_category fc
+		ON f.film_id = fc.film_id
+		JOIN category c 
+		ON fc.category_id = c.category_id)
+SELECT title, category_name, rental_duration, standard_quartile
+from t1
+WHERE t1.category_name = 'Animation' OR t1.category_name = 'Children' OR t1.category_name = 'Classics' OR t1.category_name = 'Comedy' 
+OR t1.category_name = 'Family' OR t1.category_name = 'Music';
+ 
+Next query:
+SELECT category_name, standard_quartile, COUNT(standard_quartile)
+FROM view2
+GROUP BY category_name, standard_quartile;
+
+
+~~~~
+Answer 3:
+We want to find out how the two stores compare in their count of rental orders during every month for all the years we have data for. 
+Write a query that returns the store ID for the store, the year and month and the number of rental orders each store has fulfilled for that month. 
+Your table should include a column for each of the following: year, month, store ID and count of rental orders fulfilled during that month.
+WITH t1 AS (
+  SELECT DATE_PART('month', rental_date) AS rental_month, DATE_PART('year',rental_date) AS rental_year, staff_id, COUNT(*) as count1 
+FROM rental r
+GROUP BY DATE_PART('year',rental_date), DATE_PART( 'month', rental_date), staff_id
+ORDER BY DATE_PART('year',rental_date), DATE_PART( 'month', rental_date)
+ )
+SELECT t1.rental_month, t1.rental_year, s.store_id, t1.count1 as count_rentals
+FROM staff s
+JOIN t1
+ON t1.staff_id = s.staff_id;
+
+
+
+~~~~~~
+Answer 4:
+Can you write a query to capture the customer name, month and year of payment, and total payment amount for each month by these top 10 paying customers?
+WITH t1 AS (SELECT c.customer_id, SUM(p.amount) as total_amt
+FROM payment p
+JOIN customer c
+ON p.customer_id = c.customer_id 
+GROUP BY c.customer_id
+ORDER BY total_amt DESC
+LIMIT 10)
+
+
+SELECT DATE_TRUNC('month',p.payment_date) as pay_mon, CONCAT( c.first_name, ' ', c.last_name) as full_name, COUNT(p.amount) as pay_countpermon,  SUM(p.amount) as pay_amount
+FROM rental r
+JOIN payment p
+ON r.rental_id = p.rental_id
+JOIN customer c
+ON p.customer_id = c.customer_id 
+JOIN t1 
+ON c.customer_id = t1.customer_id
+GROUP BY c.first_name, c.last_name, c.customer_id, DATE_TRUNC('month',p.payment_date)
+ORDER BY full_name, DATE_TRUNC('month',p.payment_date);
+
+
